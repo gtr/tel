@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Define the path to the .tel file in the user's home directory
+TEL_FILE="$HOME/.tel"
+
+if [ ! -f "$TEL_FILE" ]; then
+  touch "$TEL_FILE"
+fi
+
+# Adds a tag and path to the .tel file
+function add() {
+    if [ -z "$1" ]; then
+        echo "Error: No tag provided."
+        return 1
+    fi
+    if [ -z "$2" ]; then
+        path=$(pwd)
+    else
+        path="$2"
+    fi
+    echo "$1 $path" >> "$TEL_FILE"
+    echo "Tag '$1' added with path '$path'"
+}
+
+# Deletes a tag from the .tel file
+function del() {
+  if [ -z "$1" ]; then
+    echo "Error: No tag provided."
+    return 1
+  fi
+  if grep -q "^$1 " "$TEL_FILE"; then
+    sed -i "/^$1 /d" "$TEL_FILE"
+    echo "Tag '$1' deleted."
+  else
+    echo "Tag '$1' not found."
+    return 1
+  fi
+}
+
+# cds to the path associated with a tag in the .tel file
+function tel_cd() {
+  while read line; do
+    tag=$(echo "$line" | cut -d ' ' -f 1)
+    path=$(echo "$line" | cut -d ' ' -f 2-)
+    if [ "$tag" = "$1" ]; then
+      cd "$path"
+      exit 0
+    fi
+  done < "$TEL_FILE"
+
+  echo "Unknown tag '$1'"
+}
+
+# Prints the value(s) associated with a tag in the .tel file
+function lookup() {
+  if [ -z "$1" ]; then
+    # If no tag is provided, list all associations
+    tel_list
+  else
+    while read line; do
+      # Split the line into the tag and path
+      tag=$(echo "$line" | cut -d ' ' -f 1)
+      path=$(echo "$line" | cut -d ' ' -f 2-)
+      if [ "$tag" = "$1" ]; then
+        echo "$path"
+        exit 0
+      fi
+    done < "$TEL_FILE"
+    echo "Unknown tag '$1'"
+  fi
+}
+
+# Lists all tags and their associated paths
+function tel_list() {
+  # Get the length of the longest tag
+  max_tag_length=$(cut -d ' ' -f1 "$TEL_FILE" | awk '{ print length }' | sort -rn | head -1)
+
+  while read line; do
+    tag=$(echo "$line" | cut -d ' ' -f 1)
+    path=$(echo "$line" | cut -d ' ' -f 2-)
+
+    # Format the output to align the path strings
+    printf "%-${max_tag_length}s %s\n" "$tag:" "$path"
+  done < "$TEL_FILE"
+}
+
+# Prints usage instructions
+function usage() {
+  echo "tel: teleport around your file system"
+  echo ""
+  echo "Usage:"
+  echo "  tel <tag>                Change directory to the path associated with the tag"
+  echo "  tel add <tag> [path]     Add a tag with an optional path (default: current directory)"
+  echo "  tel del <tag>            Delete a tag"
+  echo "  tel lookup [tag]         Lookup the path(s) associated with the tag (all tags if none specified)"
+  echo "  tel list                 List all tags and their associated paths"
+}
+
+function main() {
+  if [ "$1" = "add" ]; then
+    add "$2" "$3"
+  elif [ "$1" = "del" ]; then
+    delete "$2"
+  elif [ "$#" -eq 1 ]; then
+    if [ "$1" = "list" ]; then
+      tel_list
+    else
+      tel_cd "$1"
+    fi
+  elif [ "$#" -eq 2 ] && [ "$1" = "lookup" ]; then
+    lookup "$2"
+  else
+    usage
+  fi
+}
+
+
+main "$@"
